@@ -1681,7 +1681,8 @@
                         </div>
                         <div class="ag-cs-ctx-quota-bar"><span style="width:${Math.max(0, Math.min(100, qPct)).toFixed(1)}%;background:${qCol}"></span></div>
                         <div class="ag-cs-ctx-quota-sub">
-                          <span>${g.b5h && !g.b5h.disabled ? `5h: ${g.b5h.remainingPct.toFixed(1)}% (${escapeHtml(r5h || '—')})` : g.bWeek ? `${escapeHtml(ui.weeklyLabel || 'Weekly')}: ${g.bWeek.remainingPct.toFixed(1)}% (${escapeHtml(rWeek || '—')})` : ''}</span>
+                          ${g.b5h && !g.b5h.disabled && typeof g.b5h.remainingPct === 'number' ? `<span>5h: ${g.b5h.remainingPct.toFixed(1)}% (${escapeHtml(r5h || '—')})</span>` : ''}
+                          ${g.bWeek && g.bWeek !== g.b5h && !g.bWeek.disabled && typeof g.bWeek.remainingPct === 'number' ? `<span>${escapeHtml(ui.weeklyLabel || 'Weekly')}: ${g.bWeek.remainingPct.toFixed(1)}% (${escapeHtml(rWeek || '—')})</span>` : ''}
                         </div>
                       </div>
                     `;
@@ -3935,7 +3936,7 @@
 
       if (!footer || cfg.inlineStats === false || cfg.composerRestyle === false) {
         card
-          .querySelectorAll('.ag-cs-inline-stats, .ag-cs-context-ring, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-rim-progress, .ag-cs-hud-footer-chip')
+          .querySelectorAll('.ag-cs-inline-stats, .ag-cs-quota-ring, .ag-cs-context-ring, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-rim-progress, .ag-cs-hud-footer-chip')
           .forEach((n) => n.remove());
         continue;
       }
@@ -3962,7 +3963,7 @@
           }
         });
       }
-      if (cfg.ringMode === 'quota') {
+      if (cfg.ringMode === 'quota' || cfg.ringMode === 'both') {
         const needQuotaRefresh = !cachedQuotaData || Date.now() - lastQuotaFetchAt >= 25000;
         const qProm = fetchQuotaData(false);
         if (needQuotaRefresh && qProm && typeof qProm.then === 'function') {
@@ -4041,12 +4042,45 @@
       if (cacheEl) cacheEl.textContent = cacheTxt;
     }
 
-    const pct = Math.max(0, Math.min(100, ring.pct));
-    const r = 5.5;
-    const circ = 2 * Math.PI * r;
-    const dash = ((pct / 100) * circ).toFixed(2);
-    const color = ring.color;
-    const pctRound = ring.pctRound;
+    const syncRingBtn = (cls, { pctVal, labelText, colorVal, modeAttr, titleText, targetTab }) => {
+      const clamped = Math.max(0, Math.min(100, pctVal));
+      const r = 5.5;
+      const circ = 2 * Math.PI * r;
+      const dash = ((clamped / 100) * circ).toFixed(2);
+      const key = `${modeAttr}|${labelText}|${dash}|${colorVal}|${titleText}|${targetTab}`;
+      let btn = footer.querySelector(`.${cls}`);
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = cls;
+        btn.setAttribute('data-ag-no-i18n', '');
+        btn.setAttribute('data-ring-mode', modeAttr);
+        btn.setAttribute('title', titleText);
+        btn.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="${r}" fill="none" stroke="var(--ag-cs-heat-empty)" stroke-width="2.2"/><circle class="ag-cs-ring-fill" cx="8" cy="8" r="${r}" fill="none" stroke="${colorVal}" stroke-width="2.2" stroke-dasharray="${dash} ${circ.toFixed(2)}" stroke-linecap="round"/></svg><span>${labelText}</span>`;
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const tab = btn.getAttribute('data-ag-cs-tab') || targetTab;
+          openContextPopover(btn, resolveCardConvoData(card, d), tab);
+        });
+        btn.setAttribute('data-ag-cs-tab', targetTab);
+        btn.setAttribute('data-ag-cs-ring-key', key);
+        footer.appendChild(btn);
+      } else if (btn.getAttribute('data-ag-cs-ring-key') !== key) {
+        btn.setAttribute('data-ag-cs-ring-key', key);
+        btn.setAttribute('data-ag-cs-tab', targetTab);
+        btn.setAttribute('data-ring-mode', modeAttr);
+        btn.setAttribute('title', titleText);
+        const fillCircle = btn.querySelector('.ag-cs-ring-fill');
+        const pctSpan = btn.querySelector('span');
+        if (fillCircle) {
+          fillCircle.setAttribute('stroke', colorVal);
+          fillCircle.setAttribute('stroke-dasharray', `${dash} ${circ.toFixed(2)}`);
+        }
+        if (pctSpan) pctSpan.textContent = labelText;
+      }
+      return btn;
+    };
+
     const remStr = formatCompactK(ring.remainingTokens);
     const maxStr = formatCompactK(ring.maxTokens);
     const usedStr = formatCompactK(ring.usedTokens);
@@ -4054,34 +4088,43 @@
       typeof ui.ringTooltip === 'function'
         ? ui.ringTooltip(remStr, maxStr, ring.contextRemainingPct.toFixed(1), usedStr, ring.contextUsedPct.toFixed(1), ring.quotaRemainingPct)
         : `Remaining ${remStr} / ${maxStr} (${ring.contextRemainingPct.toFixed(1)}%) · Used ${usedStr} (${ring.contextUsedPct.toFixed(1)}%)`;
-    const ringKey = `${ring.mode}|${pctRound}|${dash}|${color}|${ringTitle}`;
 
-    if (!ringBtn) {
-      ringBtn = document.createElement('button');
-      ringBtn.type = 'button';
-      ringBtn.className = 'ag-cs-context-ring';
-      ringBtn.setAttribute('data-ag-no-i18n', '');
-      ringBtn.setAttribute('data-ring-mode', ring.mode);
-      ringBtn.setAttribute('title', ringTitle);
-      ringBtn.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="${r}" fill="none" stroke="var(--ag-cs-heat-empty)" stroke-width="2.2"/><circle class="ag-cs-ring-fill" cx="8" cy="8" r="${r}" fill="none" stroke="${color}" stroke-width="2.2" stroke-dasharray="${dash} ${circ.toFixed(2)}" stroke-linecap="round"/></svg><span>${pctRound}%</span>`;
-      ringBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const targetTab = cfg.ringMode === 'quota' ? 'quotas' : 'breakdown';
-        openContextPopover(ringBtn, resolveCardConvoData(card, d), targetTab);
+    if (cfg.ringMode === 'both') {
+      const qPct = ring.quotaRemainingPct;
+      const qVal = qPct !== null ? qPct : 0;
+      const qLabel = qPct !== null ? `${Math.round(qPct)}%` : '--';
+      const qColor = qPct === null ? 'var(--muted-foreground)' : qPct <= 10 ? '#dc3c3d' : qPct <= 30 ? '#fbb315' : '#257de0';
+      const qTitle = qPct !== null ? `${ui.optRingQuota || 'Quota Rem %'}: ${qPct.toFixed(1)}% · ${ringTitle}` : ringTitle;
+      syncRingBtn('ag-cs-quota-ring', {
+        pctVal: qVal,
+        labelText: qLabel,
+        colorVal: qColor,
+        modeAttr: 'quota',
+        titleText: qTitle,
+        targetTab: 'quotas',
       });
-      footer.appendChild(ringBtn);
-      ringBtn.setAttribute('data-ag-cs-ring-key', ringKey);
-    } else if (ringBtn.getAttribute('data-ag-cs-ring-key') !== ringKey) {
-      ringBtn.setAttribute('data-ag-cs-ring-key', ringKey);
-      ringBtn.setAttribute('data-ring-mode', ring.mode);
-      ringBtn.setAttribute('title', ringTitle);
-      const fillCircle = ringBtn.querySelector('.ag-cs-ring-fill');
-      const pctSpan = ringBtn.querySelector('span');
-      if (fillCircle) {
-        fillCircle.setAttribute('stroke', color);
-        fillCircle.setAttribute('stroke-dasharray', `${dash} ${circ.toFixed(2)}`);
-      }
-      if (pctSpan) pctSpan.textContent = `${pctRound}%`;
+
+      const uPct = ring.contextUsedPct;
+      const uColor = uPct >= 90 ? '#dc3c3d' : uPct >= 70 ? '#fbb315' : '#257de0';
+      syncRingBtn('ag-cs-context-ring', {
+        pctVal: uPct,
+        labelText: `${Math.round(uPct)}%`,
+        colorVal: uColor,
+        modeAttr: 'context-used',
+        titleText: ringTitle,
+        targetTab: 'breakdown',
+      });
+    } else {
+      const staleQuota = footer.querySelector('.ag-cs-quota-ring');
+      if (staleQuota) staleQuota.remove();
+      syncRingBtn('ag-cs-context-ring', {
+        pctVal: ring.pct,
+        labelText: `${ring.pctRound}%`,
+        colorVal: ring.color,
+        modeAttr: ring.mode,
+        titleText: ringTitle,
+        targetTab: cfg.ringMode === 'quota' ? 'quotas' : 'breakdown',
+      });
     }
   }
 
@@ -4502,6 +4545,7 @@
         opts: [
           ['context', ui.optRingContext || 'Context Rem %'],
           ['quota', ui.optRingQuota || 'Quota Rem %'],
+          ['both', ui.optRingBoth || 'Dual Rings'],
         ],
       },
       turnBadges: {
@@ -4558,6 +4602,26 @@
           [false, ui.offLabel || 'Off'],
         ],
       },
+      rewindPanel: {
+        key: 'rewindPanel',
+        title: ui.setRewindPanelTitle || 'Rewind Timeline Panel',
+        desc: ui.setRewindPanelDesc || 'Type /rewind or press Esc twice in composer to open the inline Claude Code-style rewind bar.',
+        opts: [
+          [true, ui.onLabel || 'On'],
+          [false, ui.offLabel || 'Off'],
+        ],
+      },
+      undoConfirmMode: {
+        key: 'undoConfirmMode',
+        title: ui.setUndoConfirmTitle || 'Undo Button Behavior',
+        desc: ui.setUndoConfirmDesc || 'Behavior when clicking Undo on a turn: open the Rewind bar, keep native confirm, or auto-confirm.',
+        opts: [
+          ['picker', ui.optUndoPicker || 'Rewind Picker (Default)'],
+          ['prompt', ui.optUndoPrompt || 'Ask (Native Dialog)'],
+          ['auto_both', ui.optUndoAutoBoth || 'Auto (Code + Chat)'],
+          ['auto_chat', ui.optUndoAutoChat || 'Auto (Chat Only)'],
+        ],
+      },
     };
 
     const groups = [
@@ -4569,7 +4633,7 @@
       {
         id: 'interaction',
         title: ui.grpInteraction || 'Slider, Caret & Mascot',
-        keys: ['effortSliderStyle', 'effortAccent', 'performanceBackdrop', 'smoothCaret', 'mascot', 'homeRipple'],
+        keys: ['effortSliderStyle', 'effortAccent', 'performanceBackdrop', 'smoothCaret', 'mascot', 'homeRipple', 'rewindPanel', 'undoConfirmMode'],
       },
       {
         id: 'telemetry',
@@ -4728,18 +4792,59 @@
     syncQueued = false;
   }
 
+  // ── Feature host ─────────────────────────────────────────────────────
+  // Self-contained features live in ui-<feature>.js and register on
+  // globalThis.__agCsFeatures.<name> = { create(ctx) }. Each instance may expose
+  // sync(), onClick(ev), onKeyDown(ev) -> boolean (consumed), onEscape(ev, info), destroy().
+  const FEATURE_ORDER = ['rewind'];
+  const featureCtx = {
+    getCfg: () => cfg,
+    getUi: () => uiText(getLang()),
+    isDestroyed: () => destroyed,
+  };
+  const features = [];
+  for (const name of FEATURE_ORDER) {
+    const mod = globalThis.__agCsFeatures && globalThis.__agCsFeatures[name];
+    if (!mod || typeof mod.create !== 'function') continue;
+    try {
+      const inst = mod.create(featureCtx);
+      if (inst) features.push(inst);
+    } catch (e) {
+      if (typeof console !== 'undefined' && console.error) console.error('[agy-claude-style] feature init failed:', name, e);
+    }
+  }
+  function forEachFeature(method, ...args) {
+    for (const f of features) {
+      if (typeof f[method] !== 'function') continue;
+      try {
+        f[method](...args);
+      } catch {}
+    }
+  }
+  function featuresConsume(method, ev) {
+    for (const f of features) {
+      if (typeof f[method] !== 'function') continue;
+      try {
+        if (f[method](ev)) return true;
+      } catch {}
+    }
+    return false;
+  }
+  const FEATURE_OWN_SELECTORS = features.map((f) => f.ownSelector).filter(Boolean);
+
   function isOwnPluginNode(target) {
     const el = target && target.closest ? target : target?.parentElement;
     if (!el || !el.closest) return false;
     return Boolean(
       el.closest(
-        '.ag-cs-home-panel-seat, .ag-cs-ripple-host, .ag-cs-crab, .ag-cs-inline-stats, .ag-cs-context-ring, .ag-cs-ctx-popover, .ag-cs-effort-popover, .ag-cs-perf-backdrop, .ag-cs-smooth-caret, .ag-cs-turn-bar, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-footer-chip, #' +
+        '.ag-cs-home-panel-seat, .ag-cs-ripple-host, .ag-cs-crab, .ag-cs-inline-stats, .ag-cs-quota-ring, .ag-cs-context-ring, .ag-cs-ctx-popover, .ag-cs-effort-popover, .ag-cs-perf-backdrop, .ag-cs-smooth-caret, .ag-cs-turn-bar, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-footer-chip, #' +
           SETTINGS_SEC_ID +
           ', #' +
           THEME_SEL_ID +
           ', #' +
           THEME_DD_ID +
-          ', #ag-cs-aurora-theme-css, #ag-claude-style-css'
+          ', #ag-cs-aurora-theme-css, #ag-claude-style-css' +
+          (FEATURE_OWN_SELECTORS.length ? ', ' + FEATURE_OWN_SELECTORS.join(', ') : '')
       )
     );
   }
@@ -4770,6 +4875,7 @@
     syncComposers();
     ensureThemeCapsule();
     ensureSettingsSection();
+    forEachFeature('sync');
   }
 
   function scheduleSync() {
@@ -4844,6 +4950,7 @@
   }
 
   function onDocClick(ev) {
+    if (featuresConsume('onClick', ev)) return;
     const effortBadge = findClickedEffortBadge(ev);
     if (effortBadge) {
       ev.stopPropagation();
@@ -4860,10 +4967,13 @@
   }
 
   function onDocKeyDown(ev) {
+    if (featuresConsume('onKeyDown', ev)) return;
     if (ev.key === 'Escape') {
+      const hadPopover = Boolean(openPopover || openEffortPop || openThemeDd);
       if (openPopover) closeContextPopover();
       if (openEffortPop) closeEffortPopover();
       if (openThemeDd) closeThemeDropdown();
+      forEachFeature('onEscape', ev, { hadPopover });
     }
   }
 
@@ -5079,6 +5189,7 @@
         unmountPanelSeat,
         unmountCrab,
         restoreGreetings,
+        () => forEachFeature('destroy'),
         () => domTranslator && typeof domTranslator.destroy === 'function' && domTranslator.destroy(),
       ]) {
         try {
@@ -5102,7 +5213,7 @@
       });
       document
         .querySelectorAll(
-          '.ag-cs-inline-stats, .ag-cs-context-ring, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-rim-progress, .ag-cs-hud-footer-chip, .ag-cs-perf-backdrop, #' +
+          '.ag-cs-inline-stats, .ag-cs-quota-ring, .ag-cs-context-ring, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-rim-progress, .ag-cs-hud-footer-chip, .ag-cs-perf-backdrop, .ag-cs-rewind-bar, .ag-cs-rewind-notice, .ag-cs-rewind-backdrop, #' +
             SETTINGS_SEC_ID +
             ', #' +
             THEME_SEL_ID +

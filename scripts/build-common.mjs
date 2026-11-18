@@ -21,7 +21,7 @@ const VALIDATORS = {
   mascot: ['crab', 'off'],
   logoInk: ['accent', 'foreground'],
   inlineStats: 'boolean',
-  ringMode: ['context', 'quota'],
+  ringMode: ['context', 'quota', 'both'],
   turnBadges: 'boolean',
   hudTopBar: 'boolean',
   hudBottomBar: 'boolean',
@@ -35,6 +35,8 @@ const VALIDATORS = {
   sidebarRestyle: 'boolean',
   sidebarCompact: 'boolean',
   placeholderStyle: ['studio', 'host'],
+  rewindPanel: 'boolean',
+  undoConfirmMode: ['picker', 'prompt', 'auto_both', 'auto_chat'],
 };
 
 function createManifest() {

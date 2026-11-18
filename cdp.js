@@ -29,7 +29,7 @@ const DEFAULT_CONFIG = {
   mascot: 'crab',
   logoInk: 'accent',
   inlineStats: true,
-  ringMode: 'context',
+  ringMode: 'both',
   turnBadges: true,
   hudTopBar: false,
   hudBottomBar: false,
@@ -43,6 +43,8 @@ const DEFAULT_CONFIG = {
   sidebarRestyle: true,
   sidebarCompact: false,
   placeholderStyle: 'studio',
+  rewindPanel: true,
+  undoConfirmMode: 'picker',
   pollIntervalMs: 2500,
 };
 
@@ -181,7 +183,7 @@ function readCss() {
   return fs.readFileSync(path.join(__dirname, 'style.css'), 'utf8');
 }
 
-const RUNTIME_PARTS = ['i18n-locales.js', 'i18n-core.js', 'usage-core.js', 'ripple-core.js', 'mascot-core.js', 'crab-assets.js', 'effort-core.js', 'perf-assets.js', 'custom-themes.js', 'ui-runtime.js'];
+const RUNTIME_PARTS = ['i18n-locales.js', 'i18n-core.js', 'usage-core.js', 'ripple-core.js', 'mascot-core.js', 'crab-assets.js', 'effort-core.js', 'perf-assets.js', 'custom-themes.js', 'ui-rewind.js', 'ui-runtime.js'];
 
 function readRuntimeBundle() {
   return RUNTIME_PARTS.map((f) => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
@@ -290,6 +292,7 @@ const REMOVE_EXPRESSION = `(() => {
   delete globalThis.__agCsCustomThemes;
   delete globalThis.__agCsI18nCore;
   delete globalThis.__agCsLocales;
+  delete globalThis.__agCsFeatures;
   const root = document.documentElement;
   if (root) {
     root.removeAttribute('data-ag-cs-effort-accent');
@@ -304,7 +307,7 @@ const REMOVE_EXPRESSION = `(() => {
     if (root.getAttribute('data-ag-cjk') === '1') root.removeAttribute('data-ag-cjk');
   }
   const nodes = document.querySelectorAll(
-    'style#${STYLE_ID}, style#ag-cs-aurora-theme-css, style#ag-token-hud-style, .ag-cs-home-panel-seat, .ag-cs-ripple-host, .ag-cs-ripple-canvas, .ag-cs-crab, .ag-cs-inline-stats, .ag-cs-context-ring, .ag-cs-ctx-popover, .ag-cs-effort-popover, .ag-cs-perf-backdrop, .ag-cs-smooth-caret, .ag-cs-turn-bar, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-rim-progress, .ag-cs-hud-footer-chip, #ag-cs-settings-sec, #ag-cs-theme-selector, #ag-cs-theme-dropdown, .ag-th-top-bar, .ag-th-bottom-bar, .ag-th-rim-progress, .ag-th-footer-chip, .ag-th-popover, .ag-th-turn-bar, .ag-th-reopen-pill'
+    'style#${STYLE_ID}, style#ag-cs-aurora-theme-css, style#ag-token-hud-style, .ag-cs-home-panel-seat, .ag-cs-ripple-host, .ag-cs-ripple-canvas, .ag-cs-crab, .ag-cs-inline-stats, .ag-cs-quota-ring, .ag-cs-context-ring, .ag-cs-ctx-popover, .ag-cs-effort-popover, .ag-cs-perf-backdrop, .ag-cs-smooth-caret, .ag-cs-turn-bar, .ag-cs-hud-top-bar, .ag-cs-hud-bottom-bar, .ag-cs-hud-rim-progress, .ag-cs-hud-footer-chip, .ag-cs-rewind-bar, .ag-cs-rewind-notice, .ag-cs-rewind-backdrop, #ag-cs-settings-sec, #ag-cs-theme-selector, #ag-cs-theme-dropdown, .ag-th-top-bar, .ag-th-bottom-bar, .ag-th-rim-progress, .ag-th-footer-chip, .ag-th-popover, .ag-th-turn-bar, .ag-th-reopen-pill'
   );
   nodes.forEach((n) => n.remove());
   return { removed: nodes.length };

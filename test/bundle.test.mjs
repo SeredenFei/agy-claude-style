@@ -445,7 +445,7 @@ test('inject expression mounts and REMOVE_EXPRESSION cleanly tears down on simul
     const settingKeys = new Set(
       appearancePanel.querySelectorAll('#ag-cs-settings-sec button').map((b) => b.getAttribute('data-ag-cs-key'))
     );
-    assert.equal(settingKeys.size, 20);
+    assert.equal(settingKeys.size, 22);
     for (const expectedKey of [
       'language',
       'homeLayout',
@@ -459,6 +459,8 @@ test('inject expression mounts and REMOVE_EXPRESSION cleanly tears down on simul
       'smoothCaret',
       'mascot',
       'homeRipple',
+      'rewindPanel',
+      'undoConfirmMode',
       'inlineStats',
       'ringMode',
       'turnBadges',
@@ -1368,8 +1370,47 @@ test('bottom-right context ring navigates directly to quotas or breakdown tab ba
     ringBtn.dispatch('click');
     pop = body.querySelector('.ag-cs-ctx-popover');
     assert.equal(pop?.querySelector('.is-active')?.getAttribute('data-ctx-tab'), 'quotas');
+    pop?.querySelector('.ag-cs-ctx-close')?.dispatch('click');
+
+    doc.hidden = true;
+    sandbox.window.__agClaudeStyle.refreshConfig({ ...cdp.DEFAULT_CONFIG, ringMode: 'both' });
+    await new Promise((r) => setTimeout(r, 80));
+    doc.hidden = false;
+
+    const quotaRingBtn = footer.querySelector('.ag-cs-quota-ring');
+    const usedRingBtn = footer.querySelector('.ag-cs-context-ring');
+    assert.ok(quotaRingBtn, 'Expected left quota ring widget in both mode');
+    assert.ok(usedRingBtn, 'Expected right context-used ring widget in both mode');
+    assert.equal(quotaRingBtn.getAttribute('data-ring-mode'), 'quota');
+    assert.equal(usedRingBtn.getAttribute('data-ring-mode'), 'context-used');
+
+    quotaRingBtn.dispatch('click');
+    pop = body.querySelector('.ag-cs-ctx-popover');
+    assert.equal(pop?.querySelector('.is-active')?.getAttribute('data-ctx-tab'), 'quotas');
+    pop?.querySelector('.ag-cs-ctx-close')?.dispatch('click');
+
+    usedRingBtn.dispatch('click');
+    pop = body.querySelector('.ag-cs-ctx-popover');
+    assert.equal(pop?.querySelector('.is-active')?.getAttribute('data-ctx-tab'), 'breakdown');
+    pop?.querySelector('.ag-cs-ctx-close')?.dispatch('click');
+
+    // Switching back to single ring removes stale .ag-cs-quota-ring cleanly
+    doc.hidden = true;
+    sandbox.window.__agClaudeStyle.refreshConfig({ ...cdp.DEFAULT_CONFIG, ringMode: 'context' });
+    await new Promise((r) => setTimeout(r, 80));
+    doc.hidden = false;
+    assert.equal(footer.querySelector('.ag-cs-quota-ring'), null);
+
+    // Re-enable dual rings and ensure REMOVE_EXPRESSION removes both rings
+    doc.hidden = true;
+    sandbox.window.__agClaudeStyle.refreshConfig({ ...cdp.DEFAULT_CONFIG, ringMode: 'both' });
+    await new Promise((r) => setTimeout(r, 80));
+    doc.hidden = false;
+    assert.ok(footer.querySelector('.ag-cs-quota-ring'));
 
     vm.runInNewContext(cdp.REMOVE_EXPRESSION, sandbox);
+    assert.equal(footer.querySelector('.ag-cs-quota-ring'), null);
+    assert.equal(footer.querySelector('.ag-cs-context-ring'), null);
   } finally {
     for (const id of timers) clearTimeout(id);
   }

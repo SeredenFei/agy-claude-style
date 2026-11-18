@@ -54,7 +54,7 @@ function updateConfigSetting(key, value) {
     mascot: (v) => v === 'crab' || v === 'off',
     logoInk: (v) => v === 'accent' || v === 'foreground',
     inlineStats: (v) => typeof v === 'boolean',
-    ringMode: (v) => v === 'context' || v === 'quota',
+    ringMode: (v) => v === 'context' || v === 'quota' || v === 'both',
     turnBadges: (v) => typeof v === 'boolean',
     hudTopBar: (v) => typeof v === 'boolean',
     hudBottomBar: (v) => typeof v === 'boolean',
@@ -68,6 +68,8 @@ function updateConfigSetting(key, value) {
     sidebarRestyle: (v) => typeof v === 'boolean',
     sidebarCompact: (v) => typeof v === 'boolean',
     placeholderStyle: (v) => v === 'studio' || v === 'host',
+    rewindPanel: (v) => typeof v === 'boolean',
+    undoConfirmMode: (v) => v === 'picker' || v === 'prompt' || v === 'auto_both' || v === 'auto_chat',
   };
   if (!Object.prototype.hasOwnProperty.call(validators, key) || !validators[key](value)) return false;
   const next = { ...readConfig(), [key]: value };
